@@ -1,0 +1,4 @@
+Fullchain.pem and privkey.pem are just example.
+
+- You must replace your ssl-cert file here with these files.
+- This will make https requests.

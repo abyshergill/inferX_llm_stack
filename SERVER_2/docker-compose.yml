@@ -1,0 +1,25 @@
+services:
+  vllm-worker:
+    image: vllm/vllm-openai:latest
+    restart: always
+    runtime: nvidia
+    ports:
+      - "8000:8000"
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface  # --> This maps your local folder to the container to store weights permanently
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    shm_size: '10.24gb'
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN}
+      - HF_HUB_OFFLINE=1                              # --> Forces vLLM to use ONLY the local cache in your volumes
+    command: >
+      --model ${MODEL_NAME}
+      --host 0.0.0.0
+      --port 8000
+      --trust-remote-code

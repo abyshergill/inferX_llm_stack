@@ -1,0 +1,58 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    restart: always
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/postgres
+      - OFFLINE_MODE=True                           # --> Disables version checks and external calls
+      - HF_HUB_OFFLINE=1                            # --> Prevents automatic Hugging Face downloads
+    volumes:
+      - open_webui_data:/app/backend/data           # --> Caches local DB and uploaded files
+
+
+  vllm:
+    image: vllm/vllm-openai:latest
+    restart: always
+    runtime: nvidia
+    shm_size: '10.24gb'
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    volumes:
+      - vllm_model_cache:/root/.cache/huggingface  # -->  # This stores downloaded LLMs so they don't redownload on restart
+    environment:
+      - HF_HUB_OFFLINE=1                          # --> Forces vLLM to use only locally cached models
+      - HUGGING_FACE_HUB_TOKEN=${HUGGING_FACE_HUB_TOKEN}
+    command: --model ${MODEL_NAME} --host 0.0.0.0 --port 8000 --trust-remote-code
+
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./certs:/etc/nginx/certs:ro                 # --> Map your SSL certs folder
+    depends_on:
+      - open-webui
+      - vllm
+
+volumes:
+  postgres_data:
+  open_webui_data:    
+  vllm_model_cache: 
